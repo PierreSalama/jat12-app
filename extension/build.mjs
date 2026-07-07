@@ -28,6 +28,7 @@ function copyAssets() {
   for (const f of ['manifest.json', 'popup.html', 'popup.css', 'popup.js']) {
     cpSync(join(HERE, f), join(OUT, f));
   }
+  cpSync(join(HERE, 'icons'), join(OUT, 'icons'), { recursive: true });
 }
 
 async function run() {
