@@ -7,6 +7,7 @@ import { loadBuiltins, makeRegistry } from '../../app/src/main/adapters/registry
 import { makeRunService } from '../../app/src/main/engine/run-service.js';
 import { mountApi } from '../../app/src/main/server/api.js';
 import type { RunGateway } from '../../app/src/main/engine/gateway.js';
+import { LINKEDIN_DAILY_CAP } from '@jat12/shared';
 
 const fakeSealer: Sealer = { available: () => true, seal: (p) => Buffer.from(p), open: (b) => Buffer.from(b).toString() };
 const unusedGateway: RunGateway = {
@@ -90,5 +91,17 @@ describe('REST API + run-service wiring', () => {
     const outcome = await runService.driveNext();
     expect(outcome?.state).toBe('skipped');
     expect(dal.runs.get(run.id)!.error).toContain('no_adapter');
+  });
+
+  it('respects the LinkedIn 45/24h ledger cap — a capped source stays queued, never driven', async () => {
+    const t = Date.now();
+    const ins = db.prepare("INSERT INTO apply_ledger (run_id, source, account_key, submitted_at) VALUES (?, 'linkedin', 'default', ?)");
+    for (let i = 0; i < LINKEDIN_DAILY_CAP; i++) ins.run('r' + i, t - 1000); // fill the rolling window
+    const appl = dal.applications.ensure('j1', 'p1'); // j1 is a linkedin job
+    const run = dal.runs.enqueue(appl.id, { source: 'linkedin', lane: 'linkedin', jobId: 'j1', profileId: 'p1' });
+
+    const outcome = await runService.driveNext(); // unusedGateway would throw if it tried to drive
+    expect(outcome).toBeNull(); // over cap → nothing driven this tick
+    expect(dal.runs.get(run.id)!.state).toBe('queued'); // left for a later window
   });
 });

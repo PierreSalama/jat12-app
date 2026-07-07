@@ -14,6 +14,7 @@ import { makeDal, defaultContext, type Dal, type Sealer } from './db/dal/index.j
 import { loadBuiltins, makeRegistry } from './adapters/registry.js';
 import { WsGateway } from './engine/ws-gateway.js';
 import { makeRunService } from './engine/run-service.js';
+import { makeGmailService, makeGmailClientFactory, mountGmailApi } from './gmail/index.js';
 import { IDENTITY } from '@jat12/shared';
 
 const HERE = dirname(fileURLToPath(import.meta.url)); // dist/main at runtime
@@ -53,14 +54,24 @@ async function boot(): Promise<void> {
   const registry = makeRegistry(loadBuiltins(resourceDir('adapters/builtin')));
   const gateway = new WsGateway({ token, log: (m) => console.log(`[gateway] ${m}`) });
   const runService = makeRunService({ dal, gateway, registry, log: (m) => console.log(`[run] ${m}`) });
+  const gmail = makeGmailService({ dal, gmailClientFactory: makeGmailClientFactory(dal), log: (m) => console.log(`[gmail] ${m}`) });
 
   server = await startServer({
     db,
     version: app.getVersion(),
     startedAt: Date.now(),
     dev: DEV,
-    mount: (a) => mountApi(a, { dal, runService, registry, token, version: app.getVersion() }),
+    mount: (a) =>
+      mountApi(a, {
+        dal,
+        runService,
+        registry,
+        token,
+        version: app.getVersion(),
+        extend: (api) => mountGmailApi(api, gmail, dal),
+      }),
   });
+  gmail.start(); // scheduled status sync — dormant until a Gmail account is connected (OAuth is a user step)
   gateway.attach(server.server as unknown as import('node:http').Server); // ws /drive on the same loopback server
 
   console.log(`[jat12] db schema v${opened.migration.to} @ ${dbFile}`);

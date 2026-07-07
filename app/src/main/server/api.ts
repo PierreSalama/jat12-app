@@ -15,6 +15,8 @@ export interface ApiDeps {
   registry: Registry;
   token: string;
   version: string;
+  /** mount extra routes on the AUTHED /api sub-app (e.g. the Gmail routes). */
+  extend?: (api: Hono) => void;
 }
 
 function intParam(v: string | undefined, def: number): number {
@@ -147,6 +149,8 @@ export function mountApi(app: Hono, deps: ApiDeps): void {
       return c.json({ error: err.code ?? 'import_failed', message: err.message }, 400);
     }
   });
+
+  deps.extend?.(api); // extra authed routes (Gmail) mount here, under the same token guard
 
   app.route('/api', api);
 }

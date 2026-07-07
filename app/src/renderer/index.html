@@ -1,26 +1,35 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="aurora">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'" />
-    <title>JAT 12</title>
+    <!-- CSP: scripts only from our own bundle; fetch + EventSource restricted to the loopback brain.
+         No external hosts (no CDN/fonts) — the Aurora aesthetic ships inline/system fonts. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src http://127.0.0.1:* http://localhost:*"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JAT 12 · Aurora</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <!-- inline critical shell so first paint is the deep-navy backdrop, not a white flash -->
     <style>
-      :root { color-scheme: dark; }
-      html, body { margin: 0; height: 100%; background: #0a0e1a; color: #cdd6f4;
-        font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
-      .wrap { height: 100%; display: grid; place-content: center; text-align: center; gap: .5rem; }
-      .badge { font-size: 2.4rem; font-weight: 650; letter-spacing: -.02em;
-        background: linear-gradient(120deg, #89b4fa, #f5c2e7); -webkit-background-clip: text; background-clip: text; color: transparent; }
-      .sub { opacity: .6; font-size: .85rem; }
-      code { background: #181c2e; padding: .15rem .4rem; border-radius: 4px; }
+      html, body { margin: 0; height: 100%; background: #0a0e1a; }
+      #boot { position: fixed; inset: 0; display: grid; place-content: center; text-align: center;
+        gap: .5rem; color: #cdd6f4; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+      #boot .badge { font-size: 2rem; font-weight: 650; letter-spacing: -.02em;
+        background: linear-gradient(120deg, #89b4fa, #f5c2e7);
+        -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #boot .sub { opacity: .6; font-size: .85rem; }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <div class="badge">JAT 12 · Aurora</div>
-      <div class="sub">M0 boot placeholder — the real renderer arrives with the Aurora UI (task&nbsp;#9).</div>
-      <div class="sub">app brain live on <code>127.0.0.1:7845</code></div>
+    <!-- boot placeholder; main.ts replaces #app's content once the config + first data resolve -->
+    <div id="app">
+      <div id="boot">
+        <div class="badge">JAT 12 · Aurora</div>
+        <div class="sub">Connecting to the app brain…</div>
+      </div>
     </div>
-    <!-- Aurora renderer bundle (vanilla + raw WebGL2) mounts here in M1+ -->
+    <script type="module" src="./main.js"></script>
   </body>
 </html>

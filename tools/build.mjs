@@ -30,10 +30,15 @@ const shared = {
   external,
 };
 
+// Copy the runtime assets the bundles resolve at runtime (SQL migrations + builtin adapters), plus the
+// renderer's STATIC files (index.html + styles.css). The renderer's TS is NOT copied — it is bundled by
+// esbuild (see rendererCtx below); index.html loads ./main.js (the bundle) + ./styles.css.
 function copyAssets() {
   cpSync(join(APP, 'src/main/db/migrations'), join(OUT, 'main/db/migrations'), { recursive: true });
   cpSync(join(APP, 'src/main/adapters/builtin'), join(OUT, 'main/adapters/builtin'), { recursive: true });
-  cpSync(join(APP, 'src/renderer'), join(OUT, 'renderer'), { recursive: true });
+  mkdirSync(join(OUT, 'renderer'), { recursive: true });
+  cpSync(join(APP, 'src/renderer/index.html'), join(OUT, 'renderer/index.html'));
+  cpSync(join(APP, 'src/renderer/styles.css'), join(OUT, 'renderer/styles.css'));
 }
 
 export async function buildOnce({ watch = false } = {}) {
@@ -52,17 +57,30 @@ export async function buildOnce({ watch = false } = {}) {
     entryPoints: [join(APP, 'src/preload/preload.ts')],
     outfile: join(OUT, 'main/preload.cjs'),
   });
+  // Renderer bundle: browser target, everything bundled (no node externals — the renderer has no node
+  // deps; @jat12/shared, if ever imported by a view, is source-bundled too). ESM module the <script
+  // type="module"> loads. Sourcemaps for dev debuggability.
+  const rendererCtx = await esbuild.context({
+    bundle: true,
+    platform: 'browser',
+    target: 'es2022',
+    format: 'esm',
+    sourcemap: true,
+    logLevel: 'info',
+    entryPoints: [join(APP, 'src/renderer/main.ts')],
+    outfile: join(OUT, 'renderer/main.js'),
+  });
 
-  await Promise.all([mainCtx.rebuild(), preloadCtx.rebuild()]);
+  await Promise.all([mainCtx.rebuild(), preloadCtx.rebuild(), rendererCtx.rebuild()]);
   copyAssets();
 
   if (watch) {
-    await Promise.all([mainCtx.watch(), preloadCtx.watch()]);
+    await Promise.all([mainCtx.watch(), preloadCtx.watch(), rendererCtx.watch()]);
     console.log('[build] watching for changes…');
-    return { dispose: async () => Promise.all([mainCtx.dispose(), preloadCtx.dispose()]) };
+    return { dispose: async () => Promise.all([mainCtx.dispose(), preloadCtx.dispose(), rendererCtx.dispose()]) };
   }
-  await Promise.all([mainCtx.dispose(), preloadCtx.dispose()]);
-  console.log(`[build] emitted -> ${join(OUT, 'main/main.js')}`);
+  await Promise.all([mainCtx.dispose(), preloadCtx.dispose(), rendererCtx.dispose()]);
+  console.log(`[build] emitted -> ${join(OUT, 'main/main.js')} + ${join(OUT, 'renderer/main.js')}`);
   return { dispose: async () => {} };
 }
 

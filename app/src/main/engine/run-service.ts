@@ -9,6 +9,11 @@ import type { RunGateway } from './gateway.js';
 import { driveRun, type DriveOutcome } from './runner.js';
 import { makeResolver } from './answer-resolver.js';
 import type { Registry } from '../adapters/registry.js';
+import { LINKEDIN_DAILY_CAP } from '@jat12/shared';
+
+const DAY_MS = 86_400_000;
+/** Rolling per-account submit caps (apply_ledger is the authority; parallelism can't stack past these). */
+const CAP_BY_SOURCE: Record<string, number> = { linkedin: LINKEDIN_DAILY_CAP };
 
 export interface RunServiceDeps {
   dal: Dal;
@@ -42,10 +47,25 @@ export function makeRunService(deps: RunServiceDeps): RunService {
     return row?.id ?? (dal.ctx.db.prepare('SELECT id FROM profiles LIMIT 1').get() as { id: string } | undefined)?.id ?? '';
   }
 
+  /** Rolling-24h submit count from the ledger (the ONE cap authority). */
+  function submitsInWindow(source: string): number {
+    const cap = CAP_BY_SOURCE[source];
+    if (cap === undefined) return 0;
+    const since = now() - DAY_MS;
+    return (dal.ctx.db.prepare("SELECT COUNT(*) c FROM apply_ledger WHERE source=? AND account_key='default' AND submitted_at > ?").get(source, since) as { c: number }).c;
+  }
+  function overCap(source: string): boolean {
+    const cap = CAP_BY_SOURCE[source];
+    return cap !== undefined && submitsInWindow(source) >= cap;
+  }
+
   async function driveNext(): Promise<DriveOutcome | null> {
-    const queued = dal.runs.listLean({ state: 'queued', limit: 1 }).rows[0];
-    if (!queued) return null;
-    const run = dal.runs.get(queued.id);
+    // pick the oldest queued run whose source is UNDER its rolling cap (a capped source is left queued,
+    // not driven — the account limit can never be exceeded, v11 lockout lesson).
+    const candidates = dal.runs.listLean({ state: 'queued', limit: 25 }).rows;
+    const pick = candidates.find((r) => !overCap(r.source));
+    if (!pick) return null;
+    const run = dal.runs.get(pick.id);
     if (!run) return null;
 
     const detail = dal.jobs.getDetail(run.job_id);
@@ -76,7 +96,14 @@ export function makeRunService(deps: RunServiceDeps): RunService {
     });
 
     log(`run ${run.id}: driving ${jobUrl} via ${adapter.id}`);
-    return driveRun(run.id, { runs: dal.runs, gateway, adapter, resolve, jobUrl, now });
+    const outcome = await driveRun(run.id, { runs: dal.runs, gateway, adapter, resolve, jobUrl, now });
+    if (outcome.state === 'submitted') {
+      // one ledger row per REAL submit — this is what the cap reads next time (never worker slots).
+      dal.ctx.db
+        .prepare("INSERT INTO apply_ledger (run_id, source, account_key, submitted_at) VALUES (?, ?, 'default', ?)")
+        .run(run.id, run.source, now());
+    }
+    return outcome;
   }
 
   async function tick(): Promise<void> {
