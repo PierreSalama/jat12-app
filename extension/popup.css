@@ -7,7 +7,15 @@ h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: 0.02em; }
 .status.idle { background: #eee; color: #555; }
 .status.paired { background: #e6f4ea; color: #137333; }
 .status.unpaired { background: #fdecea; color: #b3261e; }
+.ver { margin: 6px 0 0; font-size: 11px; opacity: 0.65; }
+.btn { display: block; margin-top: 8px; text-align: center; text-decoration: none; padding: 7px 10px;
+  border-radius: 7px; border: 1px solid #cfcfcf; color: inherit; background: #f6f6f6; cursor: pointer; font: inherit; }
+.btn.primary { border-color: transparent; color: #10233f; font-weight: 600;
+  background: linear-gradient(120deg, #89b4fa, #f5c2e7); }
 .hint { margin: 10px 0 0; font-size: 11px; opacity: 0.6; }
+@media (prefers-color-scheme: dark) {
+  .btn { background: #1c1c1c; border-color: #3a3a3a; }
+}
 @media (prefers-color-scheme: dark) {
   .status.idle { background: #2a2a2a; color: #bbb; }
   .status.paired { background: #133a24; color: #7ee2a8; }

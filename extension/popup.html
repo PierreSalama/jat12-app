@@ -1,8 +1,11 @@
 <div class="wrap">
   <h1>JAT 12</h1>
   <p class="sub">Thin hands &amp; eyes for the desktop app.</p>
-  <div id="status" class="status idle">Checking pairing…</div>
-  <p class="hint">Pairing is done from the JAT 12 desktop app. This popup only reports the socket state.</p>
+  <div id="status" class="status idle">Looking for the app…</div>
+  <div id="ver" class="ver"></div>
+  <button id="connect" class="btn" hidden>Connect / re-pair</button>
+  <a id="download" class="btn primary" href="https://github.com/PierreSalama/jat12-app/releases/latest" target="_blank" rel="noopener" hidden>Download the JAT 12 app</a>
+  <p class="hint">The desktop app is the brain. This extension pairs to it automatically when it's running.</p>
 </div>
 <link rel="stylesheet" href="popup.css" />
 <script src="popup.js"></script>

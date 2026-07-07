@@ -21,7 +21,7 @@ extraResources:
   - from: src/main/db/migrations
     to: db/migrations
     filter: ['**/*.sql']
-  - from: ../adapters/builtin
+  - from: src/main/adapters/builtin
     to: adapters/builtin
     filter: ['**/*.json']
 

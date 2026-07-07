@@ -17,11 +17,24 @@ export interface ApiDeps {
   version: string;
   /** mount extra routes on the AUTHED /api sub-app (e.g. the Gmail routes). */
   extend?: (api: Hono) => void;
+  /** override the "is v11 running?" gate (tests inject a deterministic stub). */
+  v11Probe?: () => Promise<boolean>;
 }
 
 function intParam(v: string | undefined, def: number): number {
   const n = v === undefined ? def : Number(v);
   return Number.isFinite(n) ? n : def;
+}
+
+/** Live-process gate (plan §5.1): a running v11 answers on :7744; importing then could read a
+ *  half-written snapshot. Belt to the importer's lock-dir suspenders. */
+async function v11IsRunning(): Promise<boolean> {
+  try {
+    const res = await fetch('http://127.0.0.1:7744/health', { signal: AbortSignal.timeout(800) });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export function mountApi(app: Hono, deps: ApiDeps): void {
@@ -133,6 +146,7 @@ export function mountApi(app: Hono, deps: ApiDeps): void {
   // v11 import wizard
   api.post('/import/plan', async (c) => {
     const { sourcePath } = (await c.req.json()) as { sourcePath: string };
+    if (await (deps.v11Probe ?? v11IsRunning)()) return c.json({ error: 'V11_RUNNING', message: 'Quit JAT v11 first — the import reads a consistent snapshot.' }, 409);
     try {
       return c.json(planImport(sourcePath));
     } catch (e) {
@@ -142,6 +156,7 @@ export function mountApi(app: Hono, deps: ApiDeps): void {
   });
   api.post('/import/execute', async (c) => {
     const { sourcePath } = (await c.req.json()) as { sourcePath: string };
+    if (await (deps.v11Probe ?? v11IsRunning)()) return c.json({ error: 'V11_RUNNING', message: 'Quit JAT v11 first — the import reads a consistent snapshot.' }, 409);
     try {
       return c.json(executeImport(dal.ctx.db, sourcePath));
     } catch (e) {

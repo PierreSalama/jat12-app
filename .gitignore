@@ -8,3 +8,4 @@ tests/fixtures/**/local-*
 *.log
 .DS_Store
 # adapter/schema generated outputs are committed; build outputs are not
+app/release/

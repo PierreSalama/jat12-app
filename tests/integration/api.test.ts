@@ -22,14 +22,16 @@ describe('REST API + run-service wiring', () => {
   let dal: Dal;
   let app: Hono;
   let runService: ReturnType<typeof makeRunService>;
+  let registry: ReturnType<typeof makeRegistry>;
 
   beforeEach(() => {
     ({ db } = openDatabase({ file: ':memory:' }));
     dal = makeDal(defaultContext(db), { sealer: fakeSealer });
-    const registry = makeRegistry(loadBuiltins());
+    registry = makeRegistry(loadBuiltins());
     runService = makeRunService({ dal, gateway: unusedGateway, registry, pollMs: 999999 });
     app = new Hono();
-    mountApi(app, { dal, runService, registry, token: TOKEN, version: '12.0.0' });
+    // inject a deterministic "v11 not running" so the import tests don't depend on a real :7744
+    mountApi(app, { dal, runService, registry, token: TOKEN, version: '12.0.0', v11Probe: () => Promise.resolve(false) });
 
     db.prepare('INSERT INTO profiles (id, name, is_default, created_at, updated_at) VALUES (?,?,1,?,?)').run('p1', 'Pierre', 1, 1);
     db.prepare('INSERT INTO jobs (id, source, title, company, job_url, first_seen_at, last_seen_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
@@ -81,6 +83,18 @@ describe('REST API + run-service wiring', () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBeTruthy(); // NOT_FOUND / OPEN_FAILED
+  });
+
+  it('refuses import while v11 is running (409 V11_RUNNING)', async () => {
+    const app2 = new Hono();
+    mountApi(app2, { dal, runService, registry, token: TOKEN, version: '12.0.0', v11Probe: () => Promise.resolve(true) });
+    const res = await app2.request('/api/import/plan', {
+      method: 'POST',
+      headers: { ...auth.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ sourcePath: 'anything' }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toBe('V11_RUNNING');
   });
 
   it('run-service SKIPS a run whose job host has no adapter (queued→skipped, never attempted)', async () => {
