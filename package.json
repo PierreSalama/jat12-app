@@ -18,7 +18,9 @@
     "build:ext": "node extension/build.mjs",
     "rebuild:electron": "cd app && npx electron-rebuild -f -w better-sqlite3",
     "rebuild:node": "npm rebuild better-sqlite3",
-    "typecheck": "tsc -p shared/tsconfig.json && tsc -p app/tsconfig.json",
+    "dist": "npm run build && cd app && npx electron-builder --config electron-builder.yml",
+    "dist:publish": "npm run build && cd app && npx electron-builder --config electron-builder.yml --publish always",
+    "typecheck": "tsc -p shared/tsconfig.json && tsc -p app/tsconfig.json && tsc -p extension/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
@@ -27,10 +29,11 @@
     "stamp": "node tools/stamp-version.mjs"
   },
   "devDependencies": {
-    "typescript": "~6.0.3",
-    "esbuild": "^0.28.1",
-    "vitest": "^4.1.10",
     "@playwright/test": "^1.61.1",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "jsdom": "^29.1.1",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.10"
   }
 }

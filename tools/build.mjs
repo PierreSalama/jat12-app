@@ -32,6 +32,7 @@ const shared = {
 
 function copyAssets() {
   cpSync(join(APP, 'src/main/db/migrations'), join(OUT, 'main/db/migrations'), { recursive: true });
+  cpSync(join(APP, 'src/main/adapters/builtin'), join(OUT, 'main/adapters/builtin'), { recursive: true });
   cpSync(join(APP, 'src/renderer'), join(OUT, 'renderer'), { recursive: true });
 }
 

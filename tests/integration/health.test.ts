@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { Database } from 'better-sqlite3';
 import { openDatabase } from '../../app/src/main/db/index.js';
+import { discoverMigrations } from '../../app/src/main/db/migrate.js';
 import { createApp, startServer, type HealthBody, type RunningServer } from '../../app/src/main/server/index.js';
+
+const TOP = discoverMigrations().length; // schema version a fresh DB migrates to
 
 describe('/health', () => {
   let db: Database;
@@ -19,7 +22,7 @@ describe('/health', () => {
     expect(body.name).toBe('JAT 12');
     expect(body.version).toBe('12.0.0');
     expect(body.protocol).toBe(1);
-    expect(body.schema).toBe(1); // migration 001 applied
+    expect(body.schema).toBe(TOP); // all migrations applied
     expect(body.dev).toBe(true);
     expect(body.uptimeMs).toBeGreaterThanOrEqual(0);
     expect(body.pid).toBe(process.pid);
@@ -35,7 +38,7 @@ describe('/health', () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as HealthBody;
       expect(body.ok).toBe(true);
-      expect(body.schema).toBe(1);
+      expect(body.schema).toBe(TOP);
     } finally {
       await running?.close();
     }

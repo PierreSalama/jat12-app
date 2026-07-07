@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "JAT 12",
+  "version": "12.0.0",
+  "description": "JAT 12 — thin hands & eyes for the desktop brain. Sensor snapshots up, actuator commands down. No apply logic lives here.",
+  "minimum_chrome_version": "116",
+  "permissions": ["tabs", "scripting", "storage", "alarms", "webNavigation"],
+  "host_permissions": [
+    "*://*.linkedin.com/*",
+    "*://*.indeed.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "JAT 12",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.linkedin.com/*",
+        "*://*.indeed.com/*",
+        "*://smartapply.indeed.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

@@ -4,7 +4,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { Database } from 'better-sqlite3';
 import { openDatabase } from '../../app/src/main/db/index.js';
-import { runMigrations } from '../../app/src/main/db/migrate.js';
+import { runMigrations, discoverMigrations } from '../../app/src/main/db/migrate.js';
+
+const TOP = discoverMigrations().length; // current highest migration version
 
 const T = 1_700_000_000_000; // fixed epoch-ms for deterministic rows
 
@@ -42,13 +44,16 @@ describe('migration 001-core', () => {
   });
   afterEach(() => db.close());
 
-  it('migrates a fresh DB to user_version 1 and records the ledger', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(1);
+  it('migrates a fresh DB to the top version and records the ledger', () => {
+    expect(db.pragma('user_version', { simple: true })).toBe(TOP);
     const row = db.prepare('SELECT version, name FROM schema_migrations WHERE version = 1').get() as
       | { version: number; name: string }
       | undefined;
     expect(row?.version).toBe(1);
     expect(row?.name).toBe('init');
+    // every migration recorded a ledger row
+    const n = db.prepare('SELECT COUNT(*) c FROM schema_migrations').get() as { c: number };
+    expect(n.c).toBe(TOP);
   });
 
   it('enforces foreign keys', () => {
@@ -141,7 +146,7 @@ describe('migration runner (forward-only)', () => {
     const { db } = openDatabase({ file: ':memory:' });
     const res = runMigrations(db);
     expect(res.applied).toHaveLength(0);
-    expect(res.from).toBe(1);
+    expect(res.from).toBe(TOP);
     db.close();
   });
 });

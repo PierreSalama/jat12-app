@@ -1,0 +1,15 @@
+:root { color-scheme: light dark; }
+body { margin: 0; font: 13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+.wrap { width: 240px; padding: 14px 16px; }
+h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: 0.02em; }
+.sub { margin: 0 0 10px; opacity: 0.7; }
+.status { padding: 6px 10px; border-radius: 6px; font-weight: 600; }
+.status.idle { background: #eee; color: #555; }
+.status.paired { background: #e6f4ea; color: #137333; }
+.status.unpaired { background: #fdecea; color: #b3261e; }
+.hint { margin: 10px 0 0; font-size: 11px; opacity: 0.6; }
+@media (prefers-color-scheme: dark) {
+  .status.idle { background: #2a2a2a; color: #bbb; }
+  .status.paired { background: #133a24; color: #7ee2a8; }
+  .status.unpaired { background: #3a1513; color: #f2a99f; }
+}
