@@ -20,6 +20,8 @@ export interface ServerDeps {
   startedAt: number;
   /** true when running under `npm run dev` (dev identity/port). */
   dev?: boolean;
+  /** mount additional routes (the REST API) on the app before it serves. */
+  mount?: (app: Hono) => void;
 }
 
 export interface HealthBody {
@@ -51,6 +53,8 @@ export function createApp(deps: ServerDeps): Hono {
     };
     return c.json(body);
   });
+
+  deps.mount?.(app); // REST API (guarded routes) mounts here, after /health
 
   return app;
 }
