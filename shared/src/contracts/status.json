@@ -43,23 +43,26 @@
   },
 
   "parkKinds": {
-    "_order": ["missing_answer", "resume_required", "captcha", "login_required", "account_wall", "bot_challenge", "external_site", "unknown"],
+    "_note": "matches apply_runs.park_kind CHECK in migration 001-core.",
+    "_order": ["needs_answer", "resume_required", "captcha", "cloudflare", "login", "account_wall", "awaiting_review", "external_redirect", "rate_limited", "other"],
     "labels": {
-      "missing_answer": "Needs an answer",
+      "needs_answer": "Needs an answer",
       "resume_required": "Résumé needed",
       "captcha": "CAPTCHA — you solve it",
-      "login_required": "Sign-in needed",
+      "cloudflare": "Cloudflare wall — you clear it",
+      "login": "Sign-in needed",
       "account_wall": "Account required",
-      "bot_challenge": "Site verification wall",
-      "external_site": "External site",
-      "unknown": "Unknown page — captured"
+      "awaiting_review": "Ready for review",
+      "external_redirect": "External site",
+      "rate_limited": "Rate limited",
+      "other": "Parked"
     }
   },
 
   "evidenceKinds": {
-    "_note": "submit truth by CHECK constraint: state='submitted' requires a trustworthy kind.",
-    "trustworthy": ["verified", "grounded"],
-    "untrustworthy": ["inferred", "none"]
+    "_note": "apply_runs.evidence_kind; state='submitted' requires a trustworthy kind BY CHECK CONSTRAINT (can't record a false submit). legacy_untrusted exists ONLY so the v11 importer can carry quarantined history honestly.",
+    "trustworthy": ["text_became_success", "new_confirmation_node", "confirm_signal", "url_confirmation", "modal_close_confirmed", "manual_confirmed"],
+    "untrustworthy": ["legacy_untrusted"]
   },
 
   "lanes": ["linkedin", "indeed", "ats"],

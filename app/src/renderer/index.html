@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'" />
+    <title>JAT 12</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #0a0e1a; color: #cdd6f4;
+        font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+      .wrap { height: 100%; display: grid; place-content: center; text-align: center; gap: .5rem; }
+      .badge { font-size: 2.4rem; font-weight: 650; letter-spacing: -.02em;
+        background: linear-gradient(120deg, #89b4fa, #f5c2e7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .sub { opacity: .6; font-size: .85rem; }
+      code { background: #181c2e; padding: .15rem .4rem; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="badge">JAT 12 · Aurora</div>
+      <div class="sub">M0 boot placeholder — the real renderer arrives with the Aurora UI (task&nbsp;#9).</div>
+      <div class="sub">app brain live on <code>127.0.0.1:7845</code></div>
+    </div>
+    <!-- Aurora renderer bundle (vanilla + raw WebGL2) mounts here in M1+ -->
+  </body>
+</html>
