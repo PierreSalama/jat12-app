@@ -1,0 +1,34 @@
+{
+  "name": "jat12",
+  "version": "12.0.0",
+  "private": true,
+  "description": "JAT 12 (Aurora) — job auto-apply: thin extension + app brain, adapters-as-data. Ground-up rebuild of v11.",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "app",
+    "extension"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node tools/dev.mjs",
+    "build": "node tools/build.mjs",
+    "build:ext": "node extension/build.mjs",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "gen:contracts": "node tools/gen-contracts.mjs",
+    "gates": "node tools/validate-versions.mjs --check && node tools/validate-extension.mjs && node tools/validate-adapters.mjs",
+    "stamp": "node tools/stamp-version.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "esbuild": "^0.28.1",
+    "vitest": "^4.1.10",
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^22.0.0"
+  }
+}

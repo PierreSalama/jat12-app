@@ -1,0 +1,19 @@
+{
+  "name": "@jat12/shared",
+  "version": "12.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Contract package imported by app AND extension AND tests: wire protocol, adapter schema, status vocabulary, constants, normalizers. The single source of truth that makes contract-drift a compile error.",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./constants": "./src/constants.ts",
+    "./norm": "./src/norm.ts",
+    "./protocol": "./src/protocol/index.ts",
+    "./adapter-schema": "./src/adapter-schema/index.ts",
+    "./contracts/status.json": "./src/contracts/status.json"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}
