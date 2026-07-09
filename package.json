@@ -1,6 +1,6 @@
 {
   "name": "jat12",
-  "version": "12.0.0",
+  "version": "12.0.1",
   "private": true,
   "description": "JAT 12 (Aurora) — job auto-apply: thin extension + app brain, adapters-as-data. Ground-up rebuild of v11.",
   "type": "module",

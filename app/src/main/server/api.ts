@@ -189,6 +189,97 @@ export function mountApi(app: Hono, deps: ApiDeps): void {
     }
   });
 
+  // -------------------------------------------------------------------------
+  // Dashboard-facing additive routes (DAL-backed, lean shapes, parameterized SQL).
+  // -------------------------------------------------------------------------
+
+  // Dashboard stat cards: the 90-day funnel + 24h run stats + a few cheap totals.
+  api.get('/stats', (c) => {
+    const jobs = (dal.ctx.db.prepare('SELECT COUNT(*) AS c FROM jobs').get() as { c: number }).c;
+    const applications = (dal.ctx.db.prepare('SELECT COUNT(*) AS c FROM applications').get() as { c: number }).c;
+    const since7d = Date.now() - 7 * 86_400_000;
+    const submitted7d = (dal.ctx.db.prepare('SELECT COUNT(*) AS c FROM applications WHERE submitted_at IS NOT NULL AND submitted_at >= ?').get(since7d) as { c: number }).c;
+    return c.json({
+      funnel: dal.applications.funnel({ days: 90 }),
+      runs: dal.runs.stats({ hours: 24 }),
+      totals: { jobs, applications, submitted7d },
+    });
+  });
+
+  // Activity feed.
+  api.get('/events/recent', (c) => c.json({ rows: dal.events.recent({ limit: intParam(c.req.query('limit'), 50) }).rows }));
+
+  // Profiles (list / detail / update) — the Profile editor.
+  api.get('/profiles', (c) =>
+    c.json({ rows: dal.ctx.db.prepare('SELECT id, name, is_default FROM profiles ORDER BY is_default DESC, name ASC').all() }),
+  );
+  api.get('/profiles/:id', (c) => {
+    const row = dal.ctx.db.prepare('SELECT id, name, is_default, data_json FROM profiles WHERE id = ?').get(c.req.param('id')) as
+      | { id: string; name: string; is_default: number; data_json: string }
+      | undefined;
+    if (!row) return c.json({ error: 'not_found' }, 404);
+    let data: unknown = {};
+    try { data = JSON.parse(row.data_json); } catch { data = {}; }
+    return c.json({ id: row.id, name: row.name, is_default: row.is_default, data });
+  });
+  api.put('/profiles/:id', async (c) => {
+    const id = c.req.param('id');
+    const body = (await c.req.json()) as { name?: string; data?: unknown };
+    const sets: string[] = [];
+    const params: Record<string, unknown> = { id, now: dal.ctx.now() };
+    if (typeof body.name === 'string') { sets.push('name = @name'); params.name = body.name.slice(0, 512); }
+    if (body.data !== undefined) {
+      const json = JSON.stringify(body.data);
+      if (json.length > 262144) return c.json({ error: 'too_large', message: 'profile data exceeds 256KB' }, 400);
+      params.data = json; // json_valid holds — JSON.stringify emits valid JSON; the column CHECK is the belt.
+      sets.push('data_json = @data');
+    }
+    if (!sets.length) return c.json({ error: 'nothing_to_update' }, 400);
+    const info = dal.ctx.db.prepare(`UPDATE profiles SET ${sets.join(', ')}, updated_at = @now WHERE id = @id`).run(params);
+    if (info.changes === 0) return c.json({ error: 'not_found' }, 404);
+    return c.json({ ok: true });
+  });
+
+  // Learned answers (list scoped by profile / update / delete) — the Profile memory table.
+  api.get('/answers', (c) => {
+    const q = c.req.query();
+    const profileId = q.profileId;
+    if (!profileId) return c.json({ error: 'profileId_required' }, 400);
+    const input: NonNullable<Parameters<typeof dal.answers.list>[1]> = { limit: intParam(q.limit, 200) };
+    if (q.q) input.q = q.q;
+    if (q.kind === 'qa' || q.kind === 'field') input.kind = q.kind;
+    return c.json(dal.answers.list(profileId, input));
+  });
+  api.put('/answers/:id', async (c) => {
+    const id = c.req.param('id');
+    const body = (await c.req.json()) as { value?: string; locked?: boolean };
+    const sets: string[] = [];
+    const params: Record<string, unknown> = { id, now: dal.ctx.now() };
+    if (typeof body.value === 'string') { sets.push('value = @value'); params.value = body.value.slice(0, 8192); }
+    if (typeof body.locked === 'boolean') { sets.push('locked = @locked'); params.locked = body.locked ? 1 : 0; }
+    if (!sets.length) return c.json({ error: 'nothing_to_update' }, 400);
+    const info = dal.ctx.db.prepare(`UPDATE learned_answers SET ${sets.join(', ')}, updated_at = @now WHERE id = @id`).run(params);
+    if (info.changes === 0) return c.json({ error: 'not_found' }, 404);
+    return c.json({ ok: true });
+  });
+  api.delete('/answers/:id', (c) => {
+    const info = dal.ctx.db.prepare('DELETE FROM learned_answers WHERE id = ?').run(c.req.param('id'));
+    return info.changes === 0 ? c.json({ error: 'not_found' }, 404) : c.json({ ok: true });
+  });
+
+  // Email accounts (Settings › Gmail summary).
+  api.get('/email/accounts', (c) => c.json({ rows: dal.emails.listAccounts() }));
+
+  // Data export — jobs + applications as a JSON attachment.
+  api.get('/export', (c) => {
+    c.header('Content-Disposition', 'attachment; filename="jat12-export.json"');
+    return c.json({
+      exportedAt: null,
+      jobs: dal.jobs.listLean({ limit: 5000 }).rows,
+      applications: dal.applications.listLean({ limit: 5000 }).rows,
+    });
+  });
+
   deps.extend?.(api); // extra authed routes (Gmail) mount here, under the same token guard
 
   app.route('/api', api);

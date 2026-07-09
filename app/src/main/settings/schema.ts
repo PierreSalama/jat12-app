@@ -129,6 +129,11 @@ export const SETTINGS_REGISTRY = {
       enum: ['aurora', 'light', 'dark', 'system'],
       description: 'Renderer theme.',
     },
+    themeId: {
+      type: 'string',
+      default: 'atelier',
+      description: 'Free-form renderer theme id (Atelier theme registry — e.g. atelier, midnight, nord).',
+    },
   },
   notifications: {
     onApply: {

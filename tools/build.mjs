@@ -39,6 +39,9 @@ function copyAssets() {
   mkdirSync(join(OUT, 'renderer'), { recursive: true });
   cpSync(join(APP, 'src/renderer/index.html'), join(OUT, 'renderer/index.html'));
   cpSync(join(APP, 'src/renderer/styles.css'), join(OUT, 'renderer/styles.css'));
+  // the renderer is plain JS — main.js is bundled below (it imports lib/themes.js, so the registry is
+  // in the bundle), but we also copy lib/ verbatim so its ESM source ships beside the bundle.
+  cpSync(join(APP, 'src/renderer/lib'), join(OUT, 'renderer/lib'), { recursive: true });
 }
 
 export async function buildOnce({ watch = false } = {}) {
@@ -67,7 +70,7 @@ export async function buildOnce({ watch = false } = {}) {
     format: 'esm',
     sourcemap: true,
     logLevel: 'info',
-    entryPoints: [join(APP, 'src/renderer/main.ts')],
+    entryPoints: [join(APP, 'src/renderer/main.js')],
     outfile: join(OUT, 'renderer/main.js'),
   });
 

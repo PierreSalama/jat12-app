@@ -155,4 +155,102 @@ describe('REST API + run-service wiring', () => {
     expect(outcome).toBeNull(); // over cap → nothing driven this tick
     expect(dal.runs.get(run.id)!.state).toBe('queued'); // left for a later window
   });
+
+  // -------------------------------------------------------------------------
+  // Dashboard-facing additive routes
+  // -------------------------------------------------------------------------
+
+  it('GET /stats returns funnel + run stats + cheap totals (auth-guarded)', async () => {
+    expect((await app.request('/api/stats')).status).toBe(401);
+    const res = await app.request('/api/stats', auth);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { funnel: Record<string, number>; runs: { byState: Record<string, number>; total: number }; totals: { jobs: number; applications: number; submitted7d: number } };
+    expect(typeof body.funnel).toBe('object');
+    expect(typeof body.runs.total).toBe('number');
+    expect(body.totals.jobs).toBe(1); // one seeded job
+    expect(body.totals.applications).toBe(1); // one seeded application
+    expect(typeof body.totals.submitted7d).toBe('number');
+  });
+
+  it('GET /events/recent returns a rows array (auth-guarded)', async () => {
+    expect((await app.request('/api/events/recent')).status).toBe(401);
+    const res = await app.request('/api/events/recent?limit=5', auth);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { rows: unknown[] };
+    expect(Array.isArray(body.rows)).toBe(true);
+  });
+
+  it('lists profiles and fetches one with parsed data (auth-guarded)', async () => {
+    expect((await app.request('/api/profiles')).status).toBe(401);
+    const list = (await (await app.request('/api/profiles', auth)).json()) as { rows: { id: string; name: string; is_default: number }[] };
+    expect(list.rows.some((p) => p.id === 'p1' && p.is_default === 1)).toBe(true);
+    const one = (await (await app.request('/api/profiles/p1', auth)).json()) as { id: string; name: string; data: unknown };
+    expect(one.id).toBe('p1');
+    expect(typeof one.data).toBe('object');
+    expect((await app.request('/api/profiles/nope', auth)).status).toBe(404);
+  });
+
+  it('PUT /profiles/:id updates name+data and enforces the 256KB json cap', async () => {
+    const ok = await app.request('/api/profiles/p1', {
+      method: 'PUT',
+      headers: { ...auth.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Pierre S', data: { city: 'Montreal' } }),
+    });
+    expect(ok.status).toBe(200);
+    const row = db.prepare('SELECT name, data_json FROM profiles WHERE id=?').get('p1') as { name: string; data_json: string };
+    expect(row.name).toBe('Pierre S');
+    expect(JSON.parse(row.data_json).city).toBe('Montreal');
+    // oversized payload is refused (400), never written
+    const big = await app.request('/api/profiles/p1', {
+      method: 'PUT',
+      headers: { ...auth.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ data: { blob: 'x'.repeat(300000) } }),
+    });
+    expect(big.status).toBe(400);
+    expect(((await big.json()) as { error: string }).error).toBe('too_large');
+  });
+
+  it('answers: list scoped by profileId, then PUT + DELETE (auth-guarded)', async () => {
+    dal.answers.record('p1', { kind: 'qa', label: 'Years of experience?', value: '5', provenance: 'user' });
+    expect((await app.request('/api/answers?profileId=p1')).status).toBe(401);
+    // missing profileId → 400
+    expect((await app.request('/api/answers', auth)).status).toBe(400);
+    const listed = (await (await app.request('/api/answers?profileId=p1', auth)).json()) as { rows: { id: string; label: string; locked: boolean; value?: unknown }[]; total: number };
+    expect(listed.total).toBe(1);
+    const row = listed.rows[0]!;
+    expect(row.label).toBe('Years of experience?');
+    expect('value' in row).toBe(false); // lean projection — no value/options blobs
+    // PUT value + lock
+    const put = await app.request('/api/answers/' + row.id, {
+      method: 'PUT',
+      headers: { ...auth.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ value: '6', locked: true }),
+    });
+    expect(put.status).toBe(200);
+    const after = db.prepare('SELECT value, locked FROM learned_answers WHERE id=?').get(row.id) as { value: string; locked: number };
+    expect(after.value).toBe('6');
+    expect(after.locked).toBe(1);
+    // DELETE
+    expect((await app.request('/api/answers/' + row.id, { method: 'DELETE', ...auth })).status).toBe(200);
+    expect(db.prepare('SELECT COUNT(*) c FROM learned_answers WHERE id=?').get(row.id)).toEqual({ c: 0 });
+    expect((await app.request('/api/answers/' + row.id, { method: 'DELETE', ...auth })).status).toBe(404);
+  });
+
+  it('GET /email/accounts returns a rows array (auth-guarded)', async () => {
+    expect((await app.request('/api/email/accounts')).status).toBe(401);
+    const body = (await (await app.request('/api/email/accounts', auth)).json()) as { rows: unknown[] };
+    expect(Array.isArray(body.rows)).toBe(true);
+  });
+
+  it('GET /export streams a JSON attachment with jobs + applications (auth-guarded)', async () => {
+    expect((await app.request('/api/export')).status).toBe(401);
+    const res = await app.request('/api/export', auth);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="jat12-export.json"');
+    const body = (await res.json()) as { exportedAt: null; jobs: unknown[]; applications: unknown[] };
+    expect(body.exportedAt).toBeNull();
+    expect(Array.isArray(body.jobs)).toBe(true);
+    expect(body.jobs.length).toBe(1);
+    expect(Array.isArray(body.applications)).toBe(true);
+  });
 });
