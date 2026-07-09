@@ -751,9 +751,10 @@ const V12_EVENT_KINDS = new Set(['status_change', 'submitted', 'park', 'email_ma
 function mapEventKind(kind: unknown): string | null {
   const s = String(kind ?? '').toLowerCase();
   if (V12_EVENT_KINDS.has(s)) return s;
-  // a couple of v11 synonyms
-  if (s === 'status' || s === 'statuschange') return 'status_change';
-  if (s === 'apply' || s === 'submit') return 'submitted';
+  // a couple of v11 synonyms (v11 events.type = created | status_changed | progressing | …)
+  if (s === 'status' || s === 'statuschange' || s === 'status_changed') return 'status_change';
+  if (s === 'progressing' || s === 'progress') return null; // internal churn, not a user-facing event
+  if (s === 'apply' || s === 'submit' || s === 'submitted') return 'submitted';
   if (s === 'import') return 'imported';
   if (s === 'matched' || s === 'emailmatch') return 'email_matched';
   return null;
@@ -768,7 +769,8 @@ interface RunDecision {
 
 /** Return the terminal v12 run decision, or null when the task is stale in-flight (NOT imported). */
 function decideRunState(task: Record<string, unknown>, shape: TableShape): RunDecision | null {
-  const status = String(col(task, shape, 'status') ?? '').toLowerCase();
+  // v11 auto_apply_tasks column is `state` (not `status`) — try both for forward-compat.
+  const status = String(col(task, shape, 'state') ?? col(task, shape, 'status') ?? '').toLowerCase();
 
   // In-flight / not-yet-run states are stale — the v12 scheduler starts clean.
   if (status === 'queued' || status === 'scheduled' || status === 'running' || status === 'pending' || status === 'claimed') {
@@ -1198,7 +1200,7 @@ function importEvents(ctx: WriteCtx): void {
   );
 
   for (const ev of selectExisting(src.db, 'events', shape)) {
-    const kind = mapEventKind(col(ev, shape, 'kind'));
+    const kind = mapEventKind(col(ev, shape, 'kind') ?? col(ev, shape, 'type')); // v11 col is `type`
     if (!kind) continue; // dropped kind
     const id = String(col(ev, shape, 'id') ?? ctx.newId('evt'));
     const jobId = valueOrNull(col(ev, shape, 'job_id'));
@@ -1212,7 +1214,7 @@ function importEvents(ctx: WriteCtx): void {
     const jobRef = jobId && v12db.prepare('SELECT 1 FROM jobs WHERE id = ?').get(jobId) ? jobId : null;
     insEvent.run({
       id,
-      at: toEpochMs(col(ev, shape, 'at') ?? col(ev, shape, 'created_at')) ?? now(),
+      at: toEpochMs(col(ev, shape, 'at') ?? col(ev, shape, 'created_at') ?? col(ev, shape, 'timestamp')) ?? now(),
       kind,
       job_id: jobRef,
       application_id: applId,

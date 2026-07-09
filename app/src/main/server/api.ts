@@ -19,6 +19,8 @@ export interface ApiDeps {
   extend?: (api: Hono) => void;
   /** override the "is v11 running?" gate (tests inject a deterministic stub). */
   v11Probe?: () => Promise<boolean>;
+  /** show + focus the app window (popup "Open dashboard"); absent in headless tests. */
+  frontWindow?: () => void;
 }
 
 function intParam(v: string | undefined, def: number): number {
@@ -137,6 +139,28 @@ export function mountApi(app: Hono, deps: ApiDeps): void {
     c.json({ rows: registry.all().map((a) => ({ id: a.id, version: a.version, source: a.source, hosts: a.hosts, priority: a.priority, pages: a.pages.length })) }),
   );
   api.get('/secrets/health', (c) => c.json({ rows: dal.secrets.health() }));
+
+  // popup quick actions
+  api.post('/app/front', (c) => {
+    deps.frontWindow?.();
+    return c.json({ ok: true });
+  });
+  // "Track this page": upsert the posting + ensure an application on the default profile.
+  api.post('/track', async (c) => {
+    const body = (await c.req.json()) as { url?: string; title?: string; company?: string };
+    if (!body.url || !/^https?:/i.test(body.url)) return c.json({ error: 'bad_url' }, 400);
+    const host = new URL(body.url).hostname.replace(/^www\./, '');
+    const source = host.includes('linkedin') ? 'linkedin' : host.includes('indeed') ? 'indeed' : host.split('.')[0] ?? 'web';
+    const up = dal.jobs.upsert({
+      source,
+      job_url: body.url,
+      title: (body.title ?? '').slice(0, 512),
+      company: (body.company ?? '').slice(0, 256),
+    });
+    const prof = dal.ctx.db.prepare('SELECT id FROM profiles WHERE is_default = 1 LIMIT 1').get() as { id: string } | undefined;
+    if (prof) dal.applications.ensure(up.job.id, prof.id);
+    return c.json({ ok: true, jobId: up.job.id, action: up.action === 'inserted' ? 'tracked' : 'existing' });
+  });
 
   // run-service control (the minimal single-lane driver; #4 is the full scheduler)
   api.get('/apply/status', (c) => c.json({ running: runService.isRunning() }));

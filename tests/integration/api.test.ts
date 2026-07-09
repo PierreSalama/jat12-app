@@ -85,6 +85,43 @@ describe('REST API + run-service wiring', () => {
     expect(body.error).toBeTruthy(); // NOT_FOUND / OPEN_FAILED
   });
 
+  it('tracks a page via POST /track (upsert + application), rejects a bad url', async () => {
+    const res = await app.request('/api/track', {
+      method: 'POST',
+      headers: { ...auth.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.linkedin.com/jobs/view/999', title: 'Staff Eng' }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; jobId: string; action: string };
+    expect(body.action).toBe('tracked');
+    // the job + an application on the default profile exist
+    expect(dal.jobs.getDetail(body.jobId)?.title).toBe('Staff Eng');
+    const appl = db.prepare('SELECT COUNT(*) c FROM applications WHERE job_id=?').get(body.jobId) as { c: number };
+    expect(appl.c).toBe(1);
+    // idempotent: same URL → existing
+    const again = await app.request('/api/track', {
+      method: 'POST',
+      headers: { ...auth.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.linkedin.com/jobs/view/999', title: 'Staff Eng' }),
+    });
+    expect(((await again.json()) as { action: string }).action).toBe('existing');
+    const bad = await app.request('/api/track', {
+      method: 'POST',
+      headers: { ...auth.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ url: 'file:///etc/passwd' }),
+    });
+    expect(bad.status).toBe(400);
+  });
+
+  it('POST /app/front invokes the window callback', async () => {
+    let fronted = 0;
+    const app2 = new Hono();
+    mountApi(app2, { dal, runService, registry, token: TOKEN, version: '12.0.0', frontWindow: () => { fronted++; } });
+    const res = await app2.request('/api/app/front', { method: 'POST', ...auth });
+    expect(res.status).toBe(200);
+    expect(fronted).toBe(1);
+  });
+
   it('refuses import while v11 is running (409 V11_RUNNING)', async () => {
     const app2 = new Hono();
     mountApi(app2, { dal, runService, registry, token: TOKEN, version: '12.0.0', v11Probe: () => Promise.resolve(true) });

@@ -69,6 +69,16 @@ async function boot(): Promise<void> {
         token,
         version: app.getVersion(),
         extend: (api) => mountGmailApi(api, gmail, dal),
+        frontWindow: () => {
+          const [win] = BrowserWindow.getAllWindows();
+          if (win) {
+            if (win.isMinimized()) win.restore();
+            win.show();
+            win.focus();
+          } else {
+            createWindow();
+          }
+        },
       }),
   });
   gmail.start(); // scheduled status sync — dormant until a Gmail account is connected (OAuth is a user step)
